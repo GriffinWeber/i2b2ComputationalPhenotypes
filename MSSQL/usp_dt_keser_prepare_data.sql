@@ -202,7 +202,7 @@ insert into dbo.dt_keser_phenotype (phenotype)
 		select feature_num
 		from (
 			select distinct feature_num1 feature_num, cohort
-			from dt_keser_feature_cooccur_temp
+			from dt_keser_feature_cooccur
 		) t
 		group by feature_num
 		having count(*)=2

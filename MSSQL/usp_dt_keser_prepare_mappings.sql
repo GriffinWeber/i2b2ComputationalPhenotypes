@@ -111,7 +111,7 @@ insert into dbo.dt_keser_concept_children (concept_cd, child_cd)
 insert into dbo.dt_keser_concept_feature (concept_cd, feature_num)
 	select distinct c.child_cd, f.feature_num
 	from dbo.dt_keser_concept_feature f
-		inner join #dt_keser_concept_children c
+		inner join dt_keser_concept_children c
 			on f.concept_cd=c.concept_cd
 	where not exists (
 		select *

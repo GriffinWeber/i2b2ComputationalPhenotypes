@@ -42,6 +42,9 @@ create table dbo.dt_komap_phenotype (
 	gmm_stdev2 float,
 	ppv float,
 	recall float,
+	recall_base_cohort float,
+	recall_has_feature float,
+	frac_feature_in_base_cohort float,
 	generate_facts int,
 	primary key (phenotype)
 );
