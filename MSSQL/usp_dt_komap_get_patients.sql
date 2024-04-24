@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KOMAP - Get Patients
---### Date: September 1, 2023
+--### Date: April 23, 2024
 --### Database: Microsoft SQL Server
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -9,7 +9,7 @@
 
 
 -- Drop the procedure if it already exists
-IF OBJECT_ID(N'dbo.usp_dt_komap_prepare_data') IS NOT NULL DROP PROCEDURE dbo.usp_dt_komap_prepare_data;
+IF OBJECT_ID(N'dbo.usp_dt_komap_get_patients') IS NOT NULL DROP PROCEDURE dbo.usp_dt_komap_get_patients;
 GO
 
 
@@ -31,8 +31,27 @@ truncate table dbo.dt_komap_base_cohort;
 -------------------------------------------------------------------------
 -- Get patient data for the PheCode and additional features from KESER.
 -------------------------------------------------------------------------
+	
+-- OPTION 1: From the KESER patient_period_feature table (faster).
+-- This option assumes the KESER table is up to date. It can be used for testing.
+-- However, in production, KOMAP might be run more often than KESER.
+-- As a result, in production, the second option is better since it uses more up-to-date data.
+insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
+	select patient_num, feature_cd, num_dates, log(num_dates+1)
+	from (
+		select t.patient_num, f.feature_cd, 
+			(case when f.feature_cd like 'PheCode:%' then concept_dates else feature_dates end) num_dates
+		from (
+			select patient_num, feature_num, sum(feature_dates) feature_dates, sum(concept_dates) concept_dates
+			from dbo.dt_keser_patient_period_feature
+			group by patient_num, feature_num
+		) t 
+		inner join dbo.dt_keser_feature f
+				on t.feature_num=f.feature_num
+	) t;
 
--- OPTION 1: Directly from the observation_fact table (slower).
+-- OPTION 2: Directly from the observation_fact table (slower).
+/*
 insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
 	select t.patient_num, f.feature_cd, d.num_dates, log(d.num_dates+1) log_dates
 	from (
@@ -51,27 +70,7 @@ insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, lo
 			on t.feature_num=f.feature_num
 	cross apply (select (case when f.feature_cd like 'PheCode:%' then concept_dates else feature_dates end) num_dates) d
 	;
-	
--- OPTION 2: From the KESER patient_period_feature table (faster).
--- This option assumes the KESER table is up to date. It can be used for testing.
--- However, in production, KOMAP might be run more often than KESER.
--- As a result, in production, the first option is better since it uses more up-to-date data.
-/*
-insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
-	select patient_num, feature_cd, num_dates, log(num_dates+1)
-	from (
-		select t.patient_num, f.feature_cd, 
-			(case when f.feature_cd like 'PheCode:%' then concept_dates else feature_dates end) num_dates
-		from (
-			select patient_num, feature_num, sum(feature_dates) feature_dates, sum(concept_dates) concept_dates
-			from dbo.dt_keser_patient_period_feature
-			group by patient_num, feature_num
-		) t 
-		inner join dbo.dt_keser_feature f
-				on t.feature_num=f.feature_num
-	) t;
 */
-
 
 -------------------------------------------------------------------------
 -- Calculate the healthcare utilization feature for each patient.
@@ -140,7 +139,7 @@ insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, lo
 -- Both parameters (minimum number of diagnosis dates and cutoff date) need to be tuned for your site.
 insert into dbo.dt_komap_base_cohort (patient_num)
 	select patient_num
-	from crc.observation_fact
+	from dbo.observation_fact
 		cross apply (select cast(start_date as date) d) d
 	where concept_cd like 'DIAG|ICD%' and start_date>='1/1/2010'
 	group by patient_num

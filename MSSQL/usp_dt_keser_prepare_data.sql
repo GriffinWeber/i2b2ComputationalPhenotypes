@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KESER - Prepare Data
---### Date: September 1, 2023
+--### Date: April 23, 2024
 --### Database: Microsoft SQL Server
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -62,15 +62,19 @@ insert into dbo.dt_keser_patient_partition (patient_num, patient_partition)
 -- *** This might take an hour or longer to run.
 --------------------------------------------------------------------------------
 
-insert into dbo.dt_keser_patient_period_feature (patient_partition, patient_num, time_period, feature_num, min_offset, max_offset)
-	select p.patient_partition, f.patient_num, t.time_period, c.feature_num, min(t.offset_days), max(t.offset_days)
-	from dbo.observation_fact f with (nolock)
-		inner join dbo.dt_keser_patient_partition p with (nolock)
-			on f.patient_num=p.patient_num
-		inner join dbo.dt_keser_concept_feature c with (nolock)
-			on f.concept_cd=c.concept_cd
-		cross apply (select cast(f.start_date as int) / 30 time_period, cast(f.start_date as int) % 30 offset_days) t
-	group by p.patient_partition, f.patient_num, t.time_period, c.feature_num;
+insert into dbo.dt_keser_patient_period_feature (patient_partition, patient_num, time_period, feature_num, min_offset, max_offset, feature_dates, concept_dates)
+	select patient_partition, patient_num, time_period, feature_num, min(offset_days), max(offset_days), count(*) feature_dates, sum(num_concepts) concept_dates
+	from (
+		select p.patient_partition, f.patient_num, t.time_period, c.feature_num, t.offset_days, count(distinct c.concept_cd) num_concepts
+		from dbo.observation_fact f with (nolock)
+			inner join dbo.dt_keser_patient_partition p with (nolock)
+				on f.patient_num=p.patient_num
+			inner join dbo.dt_keser_concept_feature c with (nolock)
+				on f.concept_cd=c.concept_cd
+			cross apply (select cast(f.start_date as int) / 30 time_period, cast(f.start_date as int) % 30 offset_days) t
+		group by p.patient_partition, f.patient_num, t.time_period, c.feature_num, t.offset_days
+	) t
+	group by patient_partition, patient_num, time_period, feature_num
 
 
 --------------------------------------------------------------------------------
@@ -160,6 +164,9 @@ begin
 		) t
 		group by feature_num1, feature_num2;
 
+	-- Remove comments to output a message that indicates progress
+	--RAISERROR(N'Finished partition start %d.', 1, 1, @partition_start) with nowait;
+
 	-- Set the start partition for the next batch
 	select @partition_start =
 		(case when (@partition_start < 100) and (@partition_start + @batch_size >= 100) then 100 
@@ -189,13 +196,14 @@ truncate table dbo.dt_keser_feature_cooccur_temp;
 
 
 -- OPTION 1: For testing, just PheCodes 250.2 (T2DM) and 714.1 (RA)
---insert into dbo.dt_keser_phenotype (phenotype)
---	values ('PheCode:250.2'), ('PheCode:714.1')
+insert into dbo.dt_keser_phenotype (phenotype)
+	values ('PheCode:250.2'), ('PheCode:714.1')
 
 
 
 -- OPTION 2: All PheCodes that appear in both cohorts (from cooccur).
 -- Note that if embeddings fail to generate for a feature, this won't work.
+/*
 insert into dbo.dt_keser_phenotype (phenotype)
 	select feature_cd
 	from (
@@ -209,7 +217,7 @@ insert into dbo.dt_keser_phenotype (phenotype)
 	) t inner join dbo.dt_keser_feature f
 		on t.feature_num=f.feature_num
 	where f.feature_cd like 'PheCode:%';
-
+*/
 
 -- OPTION 3: All PheCodes that appear in both cohorts (from embedding).
 -- This is the best way to ensure embeddings exist in both cohorts.
