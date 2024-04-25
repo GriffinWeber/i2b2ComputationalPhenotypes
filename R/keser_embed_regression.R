@@ -27,7 +27,9 @@
 #===================================================================
 
 library(DBI)
+library(odbc)
 con <- DBI::dbConnect(odbc::odbc(), driver = "SQL Server", server = "*****", database = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
+#con <- DBI::dbConnect(odbc::odbc(), driver= "{Oracle in OraDB19Home1}", dbq = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
 embed_all <- dbGetQuery(con, "select cohort, feature_cd, dim, val from dbo.dt_keser_embedding;")
 phenotypes <- dbGetQuery(con, "select phenotype from dbo.dt_keser_phenotype;")
 
@@ -78,7 +80,10 @@ return(data.frame(phenotype=phecodes, feature_cd=sf$codes, feature_rank=seq.int(
 # OPTION 1: EXPORT RESULTS TO A DATABASE
 #===================================================================
 
-dbWriteTable(con, DBI::Id(schema="dbo", table="dt_keser_phenotype_feature"), phenotype_feature, overwrite=FALSE, append=TRUE)
+colnames(phenotype_feature) <- toupper(names(phenotype_feature))
+dbWriteTable(con, DBI::Id(schema="dbo", table="DT_KESER_PHENOTYPE_FEATURE"), phenotype_feature, overwrite=FALSE, append=TRUE)
+#dbWriteTable(con, DBI::Id(table="DT_KESER_PHENOTYPE_FEATURE"), phenotype_feature, overwrite=FALSE, append=TRUE)
+dbDisconnect(con)
 
 #===================================================================
 # OPTION 2: EXPORT RESULTS TO CSV

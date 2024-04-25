@@ -3,6 +3,8 @@
 ##
 ## KESER - GENERATE EMBEDDINGS
 ##
+## April 25, 2024
+##
 ## https://github.com/celehs/KESER-i2b2
 ##
 ## Requires R 4.3.0 or later and R Studio.
@@ -27,7 +29,9 @@
 #===================================================================
 
 library(DBI)
+library(odbc)
 con <- DBI::dbConnect(odbc::odbc(), driver = "SQL Server", server = "*****", database = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
+#con <- DBI::dbConnect(odbc::odbc(), driver= "{Oracle in OraDB19Home1}", dbq = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
 CO_all <- dbGetQuery(con, "select cohort, feature_num1, feature_num2, coocur_count from dt_keser_feature_cooccur;")
 freq_all <- dbGetQuery(con, "select cohort, feature_num, feature_cd, feature_name, feature_count from dt_keser_feature_count;")
 
@@ -87,7 +91,10 @@ embed_all <- rbind(embed_all, data.frame(cohort=1, feature_cd=embed_df$Var1, dim
 # OPTION 1: EXPORT RESULTS TO A DATABASE
 #===================================================================
 
-dbWriteTable(con, DBI::Id(schema="dbo", table="dt_keser_embedding"), embed_all, overwrite=FALSE, append=TRUE)
+colnames(embed_all) <- toupper(names(embed_all))
+dbWriteTable(con, DBI::Id(schema="dbo", table="DT_KESER_EMBEDDING"), embed_all, overwrite=FALSE, append=TRUE)
+#dbWriteTable(con, DBI::Id(table="DT_KESER_EMBEDDING"), embed_all, overwrite=FALSE, append=TRUE)
+dbDisconnect(con)
 
 #===================================================================
 # OPTION 2: EXPORT RESULTS TO CSV

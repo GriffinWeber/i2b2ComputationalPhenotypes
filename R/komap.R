@@ -27,7 +27,9 @@
 #===================================================================
 
 library(DBI)
+library(odbc)
 con <- DBI::dbConnect(odbc::odbc(), driver = "SQL Server", server = "*****", database = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
+#con <- DBI::dbConnect(odbc::odbc(), driver= "{Oracle in OraDB19Home1}", dbq = "*****", uid = "*****", pwd = rstudioapi::askForPassword("Database password"))
 phenotypes <- dbGetQuery(con, "select phenotype from dbo.dt_komap_phenotype;")
 data_dict_all <- dbGetQuery(con, "select phenotype, feature_cd, feature_name from dbo.dt_komap_phenotype_feature_dict;")
 data_cov_all <- dbGetQuery(con, "select phenotype, feature_cd1, feature_cd2, covar from dbo.dt_komap_phenotype_covar;")
@@ -62,7 +64,10 @@ return(data.frame(phenotype=phe, feature_cd=coef$feat, coef=coef$theta))
 # OPTION 1: EXPORT RESULTS TO A DATABASE
 #===================================================================
 
-dbWriteTable(con, DBI::Id(schema="dbo", table="dt_komap_phenotype_feature_coef"), phenotype_feature_coef, overwrite=FALSE, append=TRUE)
+colnames(phenotype_feature_coef) <- toupper(names(phenotype_feature_coef))
+dbWriteTable(con, DBI::Id(schema="dbo", table="DT_KOMAP_PHENOTYPE_FEATURE_COEF"), phenotype_feature_coef, overwrite=FALSE, append=TRUE)
+#dbWriteTable(con, DBI::Id(table="DT_KOMAP_PHENOTYPE_FEATURE_COEF"), phenotype_feature_coef, overwrite=FALSE, append=TRUE)
+dbDisconnect(con)
 
 #===================================================================
 # OPTION 2: EXPORT RESULTS TO CSV
