@@ -11,6 +11,8 @@
 -- NOTE: This script assumes the ACT_RESEARCH_V41 table of the ACT 4.1 Ontology 
 -- has been installed in your i2b2 ontology cell. It makes modifications to
 -- this table to enable i2b2 users to include phenotypes in their queries.
+-- The ACT 4.1 ontology is available at
+-- https://ontology-store.s3.amazonaws.com/ACTOntologyV4.1/ENACT_V41_MSSQL_I2B2_TSV.zip
 
 
 --------------------------------------------------------------------------------
