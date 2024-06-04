@@ -83,7 +83,7 @@ insert into dbo.dt_komap_patient_feature (patient_num, feature_cd, num_dates, lo
 		select patient_num, count(distinct feature_date) num_dates
 		from dbo.observation_fact with (nolock)
 			cross apply (select cast(start_date as date) feature_date) d
-		where concept_cd like 'DIAG|ICD%'
+		where concept_cd like 'ICD%'
 		group by patient_num
 	) t;
 
@@ -141,7 +141,7 @@ insert into dbo.dt_komap_base_cohort (patient_num)
 	select patient_num
 	from dbo.observation_fact
 		cross apply (select cast(start_date as date) d) d
-	where concept_cd like 'DIAG|ICD%' and start_date>='1/1/2010'
+	where concept_cd like 'ICD%' and start_date>='1/1/2010'
 	group by patient_num
 	having count(distinct d)>=3;
 
