@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KOMAP - Create Tables
---### Date: September 1, 2023
+--### Date: May 8, 2024
 --### Database: Oracle
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -18,6 +18,7 @@ BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_patient_feature'; EXCEPTION WHEN OT
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_base_cohort'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_sample'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_sample_feature'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_sample_feature_temp'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_covar_inner'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_covar'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_feature_coef'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
@@ -25,7 +26,7 @@ BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_sample_results'; EXCEPTIO
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_gmm'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_gold_standard'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE dt_komap_phenotype_patient'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
-BEGIN EXECUTE IMMEDIATE 'DROP TABLE DERIVED_FACT'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
+-- BEGIN EXECUTE IMMEDIATE 'DROP TABLE DERIVED_FACT'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
 
 
 --------------------------------------------------------------------------------
@@ -86,6 +87,15 @@ create table dt_komap_phenotype_sample_feature (
 	num_dates int not null,
 	log_dates float not null,
 	primary key (phenotype, feature_cd, patient_num)
+);
+
+create table dt_komap_phenotype_sample_feature_temp (
+    phenotype varchar(50) not null,
+    patient_num int not null,
+    feature_cd varchar(50) not null,
+    num_dates int not null,
+    log_dates float not null,
+    primary key (patient_num, feature_cd)
 );
 
 create table dt_komap_phenotype_covar_inner (
@@ -163,7 +173,7 @@ create table dt_komap_phenotype_patient (
 -- Create a DERIVED_FACT table if one does not alreay exist.
 --------------------------------------------------------------------------------
 
-
+/*
 create table DERIVED_FACT(
 	ENCOUNTER_NUM int NOT NULL,
 	PATIENT_NUM int NOT NULL,
@@ -192,7 +202,7 @@ alter table DERIVED_FACT add primary key (CONCEPT_CD,PATIENT_NUM,ENCOUNTER_NUM,S
 create index DF_IDX_CONCEPT_DATE_PATIENT on DERIVED_FACT  (CONCEPT_CD, START_DATE, PATIENT_NUM);
 create index DF_IDX_ENCOUNTER_PATIENT_CONCEPT_DATE on DERIVED_FACT  (ENCOUNTER_NUM, PATIENT_NUM, CONCEPT_CD, START_DATE);
 create index DF_IDX_PATIENT_CONCEPT_DATE on DERIVED_FACT  (PATIENT_NUM, CONCEPT_CD, START_DATE);
-
+*/
 
 
 --------------------------------------------------------------------------------
@@ -206,6 +216,7 @@ truncate table dt_komap_patient_feature;
 truncate table dt_komap_base_cohort;
 truncate table dt_komap_phenotype_sample;
 truncate table dt_komap_phenotype_sample_feature;
+truncate table dt_komap_phenotype_sample_feature_temp;
 truncate table dt_komap_phenotype_covar_inner;
 truncate table dt_komap_phenotype_covar;
 truncate table dt_komap_phenotype_feature_coef;

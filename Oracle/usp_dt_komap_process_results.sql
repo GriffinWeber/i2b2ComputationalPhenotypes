@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KOMAP - Process Results
---### Date: September 1, 2023
+--### Date: May 8, 2024
 --### Database: Oracle
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -28,7 +28,7 @@ BEGIN
 
 execute immediate 'truncate table dt_komap_phenotype_sample_results';
 execute immediate 'truncate table dt_komap_phenotype_gmm';
-execute immediate 'truncate table dt_komap_phenotype_gold_standard';
+--execute immediate 'truncate table dt_komap_phenotype_gold_standard';
 execute immediate 'truncate table dt_komap_phenotype_patient';
 
 
@@ -130,7 +130,8 @@ execute immediate 'analyze table dt_komap_phenotype_gmm compute statistics';
 -------------------------------------------------------------------------
 
 -- Threshold
--- (Target PPV>=0.9, but listed here as PPV>=0.92 to give a small buffer.)
+-- By default, based on when it becomes more likely that the patient has the phenotype.
+-- Alternatively, the threshold can be based on the estimated PPV.
 step_start_time := localtimestamp;
 row_count := 0;
 update dt_komap_phenotype p
@@ -141,7 +142,7 @@ update dt_komap_phenotype p
 			from dt_komap_phenotype_gmm g
 			where g.phenotype = p.phenotype
 		) t
-		where t.p2>=t.p1 and t.score>t.m1 and t.ppv>=0.92
+		where t.p2>=t.p1 and t.score>t.m1 --and t.ppv>=0.92
 	);
 row_count := row_count + sql%rowcount;
 
@@ -283,8 +284,13 @@ update dt_komap_phenotype p
 -- Generate derived phenotype facts when the PPV >= 0.9.
 -------------------------------------------------------------------------
 
+-- Select all phenotypes where a threshold was computed
 update dt_komap_phenotype
-	set generate_facts = (case when ppv>=0.9 then 1 else 0 end);
+    set generate_facts = (case when threshold is not null then 1 else 0 end);
+
+-- Alternatively, use custom logic to select only the best phenotypes
+--update dt_komap_phenotype
+--	set generate_facts = (case when ppv>=0.9 then 1 else 0 end);
 usp_dt_print(step_start_time, '  update dt_komap_phenotype', sql%rowcount);
 
 execute immediate 'analyze table dt_komap_phenotype compute statistics';

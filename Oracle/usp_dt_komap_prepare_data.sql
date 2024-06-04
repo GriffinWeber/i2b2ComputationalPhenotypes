@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KOMAP - Prepare Data
---### Date: September 1, 2023
+--### Date: May 8, 2024
 --### Database: Oracle
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -16,6 +16,8 @@ CREATE PROCEDURE usp_dt_komap_prepare_data
 AS
     proc_start_time timestamp := localtimestamp;
     step_start_time timestamp;
+    current_phenotype varchar(50);
+    phenotype_number int;
 BEGIN
 
 
@@ -28,6 +30,7 @@ execute immediate 'truncate table dt_komap_phenotype';
 execute immediate 'truncate table dt_komap_phenotype_feature_dict';
 execute immediate 'truncate table dt_komap_phenotype_sample';
 execute immediate 'truncate table dt_komap_phenotype_sample_feature';
+execute immediate 'truncate table dt_komap_phenotype_sample_feature_temp';
 execute immediate 'truncate table dt_komap_phenotype_covar_inner';
 execute immediate 'truncate table dt_komap_phenotype_covar';
 execute immediate 'truncate table dt_komap_phenotype_feature_coef';
@@ -142,6 +145,7 @@ execute immediate 'analyze table dt_komap_phenotype_sample compute statistics';
 -------------------------------------------------------------------------
 
 step_start_time := localtimestamp;
+-- For all available phenotypes, this can take several hours and generate more than a billion rows
 insert into dt_komap_phenotype_sample_feature (phenotype, patient_num, feature_cd, num_dates, log_dates)
 	select f.phenotype, p.patient_num, p.feature_cd, p.num_dates, p.log_dates
 	from dt_komap_phenotype_feature_dict f
@@ -154,22 +158,52 @@ usp_dt_print(step_start_time, '  insert into dt_komap_phenotype_sample_feature',
 execute immediate 'analyze table dt_komap_phenotype_sample_feature compute statistics';
 
 -------------------------------------------------------------------------
--- Calculate the covariance matrix for each phenotype.
+-- Calculate the "inner" covariance matrix for each phenotype.
+-- This is the slower part (about a minute per phenotype).
 -------------------------------------------------------------------------
 
--- This is the slower part (about a minute per phenotype).
+-- Set initial values
+select min(phenotype) into current_phenotype from dt_komap_phenotype;
+phenotype_number := 1;
 step_start_time := localtimestamp;
-insert into dt_komap_phenotype_covar_inner
-	select a.phenotype, a.feature_cd feature_cd1, b.feature_cd feature_cd2, count(*), sum(a.log_dates * b.log_dates)
-	from dt_komap_phenotype_sample_feature a
-		inner join dt_komap_phenotype_sample_feature b
-			on a.phenotype=b.phenotype and a.patient_num=b.patient_num
-	group by a.phenotype, a.feature_cd, b.feature_cd;
-usp_dt_print(step_start_time, '  insert into dt_komap_phenotype_covar_inner', sql%Rowcount);
+
+while current_phenotype is not null loop
+    -- Delete data from the temp table
+    execute immediate 'truncate table dt_komap_phenotype_sample_feature_temp';
+
+    -- Get the sample feature data for just this phenotype
+    insert into dt_komap_phenotype_sample_feature_temp
+        select *
+        from dt_komap_phenotype_sample_feature
+        where phenotype = current_phenotype;
+
+    -- Calculate the inner covariance matrix for this phenotype
+    insert into dt_komap_phenotype_covar_inner
+        select max(a.phenotype) phenotype, a.feature_cd feature_cd1, b.feature_cd feature_cd2, count(*) n, sum(a.log_dates * b.log_dates) d
+        from dt_komap_phenotype_sample_feature_temp a
+            inner join dt_komap_phenotype_sample_feature_temp b
+                on a.patient_num=b.patient_num
+        group by a.feature_cd, b.feature_cd;
+    usp_dt_print(step_start_time, '  insert into dt_komap_phenotype_covar_inner ' || to_char(phenotype_number) || '(' || current_phenotype || ')', sql%Rowcount);
+
+    -- Remove comments to output a message that indicates progress
+    -- dbms_output.put_line('Finished phenotype ' || to_char(phenotype_number) || '(' || current_phenotype || ') in ' ||
+    --     to_char(localtimestamp - step_start_time) + 'ms');
+
+    -- Move to the next phenotype
+    select min(phenotype) into current_phenotype
+    from dt_komap_phenotype
+    where phenotype > current_phenotype;
+    phenotype_number := phenotype_number + 1;
+    step_start_time := localtimestamp;
+end loop;
 
 execute immediate 'analyze table dt_komap_phenotype_covar_inner compute statistics';
 
+-------------------------------------------------------------------------
+-- Calculate the full covariance matrix for each phenotype.
 -- This is the faster part (about a second per phenotype).
+-------------------------------------------------------------------------
 step_start_time := localtimestamp;
 insert into dt_komap_phenotype_covar
 with p as (

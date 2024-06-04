@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KOMAP - Get Patients
---### Date: September 1, 2023
+--### Date: May 8, 2024
 --### Database: Oracle
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -32,33 +32,11 @@ execute immediate 'truncate table dt_komap_base_cohort';
 -- Get patient data for the PheCode and additional features from KESER.
 -------------------------------------------------------------------------
 
--- OPTION 1: Directly from the observation_fact table (slower).
-step_start_time := localtimestamp;
-insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
-	select t.patient_num, f.feature_cd, d.num_dates, ln(d.num_dates+1) log_dates
-	from (
-		select patient_num, feature_num, count(*) feature_dates, sum(num_concepts) concept_dates
-		from (
-			select f.patient_num, c.feature_num, t.start_date, count(distinct c.concept_cd) num_concepts
-			from observation_fact f
-				inner join dt_keser_concept_feature c
-					on f.concept_cd=c.concept_cd
-				cross apply (select cast(f.start_date as date) start_date from dual) t
-			group by f.patient_num, c.feature_num, t.start_date
-		) t
-		group by patient_num, feature_num
-	) t 
-	inner join dt_keser_feature f
-			on t.feature_num=f.feature_num
-	cross apply (select (case when f.feature_cd like 'PheCode:%' then concept_dates else feature_dates end) num_dates from dual) d
-	;
-usp_dt_print(step_start_time, '  insert into dt_komap_patient_feature', sql%Rowcount);
-
--- OPTION 2: From the KESER patient_period_feature table (faster).
+-- OPTION 1: From the KESER patient_period_feature table (faster).
 -- This option assumes the KESER table is up to date. It can be used for testing.
 -- However, in production, KOMAP might be run more often than KESER.
 -- As a result, in production, the first option is better since it uses more up-to-date data.
-/*
+step_start_time := localtimestamp;
 insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
 	select patient_num, feature_cd, num_dates, ln(num_dates+1)
 	from (
@@ -72,8 +50,29 @@ insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_da
 		inner join dt_keser_feature f
 				on t.feature_num=f.feature_num
 	) t;
-*/
+usp_dt_print(step_start_time, '  insert into dt_komap_patient_feature', sql%Rowcount);
 
+-- OPTION 2: Directly from the observation_fact table (slower).
+/*
+insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
+    select t.patient_num, f.feature_cd, d.num_dates, ln(d.num_dates+1) log_dates
+    from (
+        select patient_num, feature_num, count(*) feature_dates, sum(num_concepts) concept_dates
+        from (
+            select f.patient_num, c.feature_num, t.start_date, count(distinct c.concept_cd) num_concepts
+            from observation_fact f
+                 inner join dt_keser_concept_feature c
+                    on f.concept_cd=c.concept_cd
+                 cross apply (select cast(f.start_date as date) start_date from dual) t
+            group by f.patient_num, c.feature_num, t.start_date
+        ) t
+        group by patient_num, feature_num
+    ) t
+    inner join dt_keser_feature f
+            on t.feature_num=f.feature_num
+    cross apply (select (case when f.feature_cd like 'PheCode:%' then concept_dates else feature_dates end) num_dates from dual) d
+    ;
+*/
 
 -------------------------------------------------------------------------
 -- Calculate the healthcare utilization feature for each patient.
@@ -87,8 +86,7 @@ insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_da
 		select f.patient_num, count(distinct d.feature_date) num_dates
 		from observation_fact f
 			cross apply (select cast(f.start_date as date) feature_date from dual) d
-		where f.concept_cd like 'ICD%'
--- 			where f.concept_cd like 'DIAG|ICD%'
+        where f.concept_cd like 'ICD%'
         group by f.patient_num
 	) t;
 usp_dt_print(step_start_time, '  insert into dt_komap_patient_feature (Utilization:IcdDates)', sql%Rowcount);
@@ -126,8 +124,7 @@ step_start_time := localtimestamp;
 insert into dt_komap_patient_feature (patient_num, feature_cd, num_dates, log_dates)
 	select distinct patient_num, 'VITAL|BMI:30plus', 1, ln(2)
 		from observation_fact
-		where concept_cd = 'LOINC:39156-5' and nval_num >= 30;
---         where concept_cd = 'VITAL|LOINC:39156-5' and nval_num >= 30;
+        where concept_cd = 'VITAL|LOINC:39156-5' and nval_num >= 30;
 usp_dt_print(step_start_time, '  insert into dt_komap_patient_feature (VITAL|BMI)', sql%Rowcount);
 
 -- Smoking
@@ -158,8 +155,8 @@ insert into dt_komap_base_cohort (patient_num)
 	select f.patient_num
 	from observation_fact f
 		cross apply (select trunc(f.start_date) d from dual) d
-	where f.concept_cd like 'ICD%' and trunc(f.start_date) >= to_date('2010-01-01', 'YYYY-MM-DD')
---  where f.concept_cd like 'DIAG|ICD%' and trunc(f.start_date) >= to_date('2010-01-01', 'YYYY-MM-DD')
+    where f.concept_cd like 'ICD%'
+        and trunc(f.start_date) >= to_date('2010-01-01', 'YYYY-MM-DD')
 	group by f.patient_num
 	having count(distinct d)>=3;
 usp_dt_print(step_start_time, '  insert into dt_komap_base_cohort', sql%Rowcount);

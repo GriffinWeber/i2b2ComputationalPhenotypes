@@ -1,7 +1,7 @@
 --##############################################################################
 --##############################################################################
 --### KESER - Prepare Data
---### Date: September 1, 2023
+--### Date: May 8, 2024
 --### Database: Oracle
 --### Created By: Griffin Weber (weber@hms.harvard.edu)
 --##############################################################################
@@ -66,18 +66,25 @@ execute immediate 'analyze table dt_keser_patient_partition compute statistics';
 -- Here we use the SQL Server default of Jan 1, 1900, as that start date.
 -- *** This might take an hour or longer to run.
 --------------------------------------------------------------------------------
-
 step_start_time := localtimestamp;
-insert into dt_keser_patient_period_feature (patient_partition, patient_num, time_period, feature_num, min_offset, max_offset)
-	select p.patient_partition, f.patient_num, t.time_period, c.feature_num, min(t.offset_days), max(t.offset_days)
-	from observation_fact f
-		inner join dt_keser_patient_partition p
-			on f.patient_num=p.patient_num
-		inner join dt_keser_concept_feature c
-			on f.concept_cd=c.concept_cd
-		cross apply (select trunc((trunc(f.start_date) - to_date('1900-01-01', 'YYYY-DD-MM')) / 30) time_period,
-                         mod(floor(trunc(f.start_date) - to_date('1900-01-01', 'YYYY-DD-MM')), 30) offset_days from dual) t
-	group by p.patient_partition, f.patient_num, t.time_period, c.feature_num;
+    insert into dt_keser_patient_period_feature (patient_partition, patient_num, time_period, feature_num, min_offset, max_offset, feature_dates, concept_dates)
+    select patient_partition, patient_num, time_period, feature_num, min(offset_days), max(offset_days), count(*) feature_dates, sum(num_concepts) concept_dates
+    from (
+        select p.patient_partition, f.patient_num, t.time_period, c.feature_num, t.offset_days, count(distinct c.concept_cd) num_concepts
+        from observation_fact f
+            inner join dt_keser_patient_partition p
+                on f.patient_num=p.patient_num
+            inner join dt_keser_concept_feature c
+                on f.concept_cd=c.concept_cd
+			cross apply (
+                select trunc((trunc(f.start_date) - to_date('1900-01-01', 'YYYY-DD-MM')) / 30) time_period,
+                    mod(floor(trunc(f.start_date) - to_date('1900-01-01', 'YYYY-DD-MM')), 30) offset_days
+                from dual
+            ) t
+        group by p.patient_partition, f.patient_num, t.time_period, c.feature_num, t.offset_days
+    ) t
+    group by patient_partition, patient_num, time_period, feature_num;
+
 usp_dt_print(step_start_time, '  insert into dt_keser_patient_period_feature', sql%Rowcount);
 
 execute immediate 'analyze table dt_keser_patient_period_feature compute statistics';
@@ -174,6 +181,9 @@ while partition_start<200 loop
     usp_dt_print(step_start_time, '    insert into dt_keser_feature_cooccur_temp ['
             || to_char(partition_start) || '-' || to_char(partition_end) || ']', sql%Rowcount);
 
+    -- Remove comments to output a message that indicates progress
+    -- dbms_output.put_line('Finished partition start ' || to_char(partition_start));
+
 	-- Set the start partition for the next batch
 	partition_start :=
 		(case when (partition_start < 100) and (partition_start + batch_size >= 100) then 100
@@ -215,20 +225,21 @@ insert into dt_keser_phenotype (phenotype) values ('PheCode:714.1');
 
 -- OPTION 2: All PheCodes that appear in both cohorts (from cooccur).
 -- Note that if embeddings fail to generate for a feature, this won't work.
--- insert into dt_keser_phenotype (phenotype)
--- 	select feature_cd
--- 	from (
--- 		select feature_num
--- 		from (
--- 			select distinct feature_num1 feature_num, cohort
---             from dt_keser_feature_cooccur
--- 		) t
--- 		group by feature_num
--- 		having count(*)=2
--- 	) t inner join dt_keser_feature f
--- 		on t.feature_num=f.feature_num
--- 	where f.feature_cd like 'PheCode:%';
-
+/*
+insert into dt_keser_phenotype (phenotype)
+	select feature_cd
+	from (
+		select feature_num
+		from (
+			select distinct feature_num1 feature_num, cohort
+            from dt_keser_feature_cooccur
+		) t
+		group by feature_num
+		having count(*)=2
+	) t inner join dt_keser_feature f
+		on t.feature_num=f.feature_num
+	where f.feature_cd like 'PheCode:%';
+*/
 
 -- OPTION 3: All PheCodes that appear in both cohorts (from embedding).
 -- This is the best way to ensure embeddings exist in both cohorts.
