@@ -258,8 +258,9 @@ PART 1: Generate Embeddings
 
 PART 2: Embedding Regression
 1) Export to CSV: dbo.dt_keser_embedding --> dt_keser_embedding.csv
-2) Run in R: keser_embed_regression.R
-3) Import from CSV: dt_keser_phenotype_feature.csv --> dbo.dt_keser_phenotype_feature
+2) Export to CSV: dbo.dt_keser_phenotype --> dt_keser_phenotype.csv
+3) Run in R: keser_embed_regression.R
+4) Import from CSV: dt_keser_phenotype_feature.csv --> dbo.dt_keser_phenotype_feature
 
 */
 
