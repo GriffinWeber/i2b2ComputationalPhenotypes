@@ -247,10 +247,11 @@ or data can be passed between the database and R via CSV files.
 To use CSV files, export the tables listed below to CSV files,
 and then import the CSV file created by R to the database table.
 
-1) Export to CSV: dt_komap_phenotype_feature_dict --> dt_komap_phenotype_feature_dict.csv
-2) Export to CSV: dt_komap_phenotype_covar --> dt_komap_phenotype_covar.csv
-3) Run in R: komap.R
-4) Import from CSV: dt_komap_phenotype_feature_coef.csv --> dt_komap_phenotype_feature_coef
+1) Export to CSV: dbo.dt_komap_phenotype --> dt_komap_phenotype.csv
+2) Export to CSV: dbo.dt_komap_phenotype_feature_dict --> dt_komap_phenotype_feature_dict.csv
+3) Export to CSV: dbo.dt_komap_phenotype_covar --> dt_komap_phenotype_covar.csv
+4) Run in R: komap.R
+5) Import from CSV: dt_komap_phenotype_feature_coef.csv --> dbo.dt_komap_phenotype_feature_coef
 
 */
 usp_dt_print(proc_start_time, 'usp_dt_komap_prepare_data', null);
